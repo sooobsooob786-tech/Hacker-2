@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CRITICAL_SYSTEM_BREACH</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Lalezar&family=Black+Ops+One&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0f0;
+            --dim-primary: #003b00;
+            --alert: #ff003c;
+            --bg: #000;
+            --cyan: #0ff;
+        }
+
+        body {
+            background-color: var(--bg); color: var(--primary);
+            font-family: 'Share Tech Mono', monospace;
+            overflow: hidden; margin: 0;
+            user-select: none; -webkit-user-select: none;
+            cursor: none;
+        }
+
+        /* افکت مانیتورهای قدیمی */
+        .scanlines {
+            position: fixed; inset: 0; z-index: 9998;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%; pointer-events: none;
+        }
+        
+        .crt-flicker {
+            animation: flicker 0.15s infinite;
+        }
+        @keyframes flicker {
+            0% { opacity: 0.95; }
+            50% { opacity: 0.85; }
+            100% { opacity: 0.95; }
+        }
+
+        /* افکت قطعی تصویر */
+        .glitch-effect { animation: glitch 0.3s cubic-bezier(.25, .46, .45, .94) both infinite; }
+        @keyframes glitch {
+            0% { transform: translate(0) }
+            20% { transform: translate(-2px, 2px) }
+            40% { transform: translate(-2px, -2px) }
+            60% { transform: translate(2px, 2px) }
+            80% { transform: translate(2px, -2px) }
+            100% { transform: translate(0) }
+        }
+
+        #matrix-canvas { position: fixed; top: 0; left: 0; z-index: 1; opacity: 0.2; pointer-events: none; }
+
+        #ui-layer {
+            position: relative; z-index: 10; height: 100vh;
+            display: flex; flex-direction: column; padding: 10px; box-sizing: border-box; display: none;
+        }
+
+        .hud-panel {
+            border: 1px solid var(--primary); background: rgba(0, 20, 0, 0.75);
+            backdrop-filter: blur(5px); position: relative; box-shadow: inset 0 0 15px rgba(0,255,0,0.2);
+        }
+        
+        .hud-corner { position: absolute; width: 12px; height: 12px; border-color: var(--cyan); border-style: solid; }
+        .tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+        .tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+        .bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+        .br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+        .top-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px; padding: 5px 15px; border-bottom: 2px solid var(--primary);
+            background: linear-gradient(90deg, transparent, rgba(0,255,0,0.2), transparent);
+        }
+
+        .grid-layout { display: grid; grid-template-rows: 1.2fr 1fr 1.5fr; gap: 10px; flex: 1; overflow: hidden; }
+        @media (min-width: 768px) { .grid-layout { grid-template-columns: 1fr 1fr; grid-template-rows: 2fr 1fr; } }
+
+        /* ماژول چهره یاب */
+        .cam-box { position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; background: #050505; }
+        .static-noise {
+            position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1IiBoZWlnaHQ9IjUiPgo8cmVjdCB3aWR0aD0iNSIgaGVpZ2h0PSI1IiBmaWxsPSIjMTExIi8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMzMzMiLz4KPC9zdmc+');
+            animation: noise 0.2s steps(5) infinite; opacity: 0.6;
+        }
+        @keyframes noise { 0% {transform: translate(0,0)} 100% {transform: translate(5%,5%)} }
+        
+        .face-frame {
+            width: 120px; height: 120px; border: 2px solid var(--cyan);
+            position: absolute; z-index: 5; opacity: 0; transition: all 0.3s ease;
+            box-shadow: 0 0 15px var(--cyan), inset 0 0 10px var(--cyan);
+        }
+        .crosshair {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 20px; height: 20px; border: 1px solid rgba(0,255,255,0.5); border-radius: 50%;
+        }
+
+        /* ترمینال */
+        .terminal-container { font-size: 13px; padding: 10px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-start; }
+        .log-entry { margin-bottom: 4px; padding-left: 5px; opacity: 0.9; direction: ltr; text-align: left; text-shadow: 0 0 3px var(--primary); }
+        .log-danger { color: var(--alert); text-shadow: 0 0 5px red; font-weight: bold; }
+        .log-persian { font-family: 'Lalezar'; font-size: 1.3rem; direction: rtl; text-align: right; color: var(--alert); }
+
+        /* نوار پیشرفت استخراج داده */
+        .data-extraction { padding: 10px; font-size: 12px; }
+        .progress-box { margin-bottom: 8px; }
+        .progress-bar-bg { width: 100%; height: 8px; background: #111; border: 1px solid var(--primary); margin-top: 3px; }
+        .progress-bar-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.1s linear; box-shadow: 0 0 10px var(--primary); }
+
+        /* صفحه استارت */
+        #start-screen {
+            position: fixed; inset: 0; z-index: 9999; background: #0a0a0a;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer;
+        }
+        .pulse-btn {
+            background: transparent; border: 2px solid var(--primary); color: var(--primary);
+            padding: 15px 40px; font-family: 'Lalezar'; font-size: 1.5rem;
+            animation: neon-pulse 1.5s infinite alternate; border-radius: 5px; box-shadow: 0 0 10px var(--primary);
+        }
+        @keyframes neon-pulse { from { box-shadow: 0 0 5px var(--primary); } to { box-shadow: 0 0 25px var(--primary), inset 0 0 10px var(--primary); } }
+
+        /* پاپ آپ */
+        .cyber-popup {
+            font-family: 'Lalezar', cursive; font-size: 2rem; color: #fff; background: rgba(200,0,0,0.9);
+            border: 2px solid #fff; padding: 20px 40px; position: absolute; top: 40%; left: 50%;
+            transform: translate(-50%, -50%) scale(0); z-index: 200; text-align: center;
+            box-shadow: 0 0 50px red, inset 0 0 20px black; border-radius: 5px; text-shadow: 2px 2px 0 #000;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* صفحه نابودی نهایی */
+        .purge-screen-v2 {
+            height: 100vh; width: 100%; background: #000; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; overflow: hidden; position: relative; z-index: 99999;
+        }
+        .persian-main-title {
+            font-family: 'Lalezar', cursive; font-size: 4rem; color: red;
+            text-shadow: 0 0 30px red, 5px 5px 0px black; z-index: 10; margin-bottom: 10px;
+            animation: shiver 0.05s infinite; text-align: center; line-height: 1.2;
+        }
+        .chaos-bg {
+            position: absolute; inset: 0; display: flex; flex-wrap: wrap; justify-content: center; align-content: center;
+            opacity: 0.7; z-index: 1; font-family: 'Share Tech Mono'; font-size: 1.4rem; line-height: 1; text-align: center; overflow: hidden;
+        }
+        @keyframes shiver { 0% { transform: translate(2px, 2px); } 25% { transform: translate(-2px, 0px); } 50% { transform: translate(0px, -2px); } 75% { transform: translate(-2px, 2px); } 100% { transform: translate(2px, -2px); } }
+    </style>
+</head>
+<body class="crt-flicker" oncontextmenu="return false;"> 
+    
+    <div class="scanlines"></div>
+    <canvas id="matrix-canvas"></canvas>
+
+    <div id="start-screen">
+        <h1 style="font-family: 'Black Ops One'; font-size: 3rem; color: white; margin-bottom: 30px;">IRAN-CELL / MCI</h1>
+        <div class="pulse-btn">دریافت 50 گیگابایت اینترنت رایگان</div>
+        <p class="text-xs text-gray-500 mt-6 animate-pulse" dir="ltr">[ CONNECTION SECURE ]</p>
+    </div>
+
+    <div id="ui-layer">
+        <div class="top-bar">
+            <div class="text-xs" dir="ltr">TARGET_IP: <span id="ip-display" class="text-cyan-400 animate-pulse">LOCATING...</span></div>
+            <div class="text-2xl font-bold font-['Black_Ops_One'] tracking-widest text-red-500 glitch">PROJECT: VENOM</div>
+            <div class="text-xs text-right" dir="ltr">SYS_LOAD: <span id="cpu-load">0%</span></div>
+        </div>
+
+        <div class="grid-layout">
+            <div class="hud-panel terminal-container" id="terminal">
+                <div class="hud-corner tl"></div><div class="hud-corner tr"></div>
+                <div class="hud-corner bl"></div><div class="hud-corner br"></div>
+                <div class="text-gray-400 mb-2 border-b border-green-900 pb-1" dir="ltr">root@venom-server:~# execute_payload.sh</div>
+                <div id="terminal-content" class="overflow-y-auto flex-1"></div>
+            </div>
+
+            <div class="hud-panel">
+                <div class="hud-corner tl"></div><div class="hud-corner tr"></div>
+                <div class="hud-corner bl"></div><div class="hud-corner br"></div>
+                <div id="globe-container" style="width:100%; height:100%;"></div>
+                <div class="absolute bottom-2 right-2 text-xs text-cyan-400 bg-black/80 px-2 font-mono border border-cyan-900" dir="ltr">GEO_TRACKING: ACTIVE</div>
+            </div>
+
+            <div class="hud-panel cam-box">
+                <div class="hud-corner tl"></div><div class="hud-corner tr"></div>
+                <div class="hud-corner bl"></div><div class="hud-corner br"></div>
+                
+                <div class="static-noise"></div>
+                <div class="absolute top-2 left-2 text-red-500 font-bold animate-pulse text-xs z-10 tracking-widest">● REC</div>
+                
+                <div class="face-frame" id="face-frame">
+                    <div class="crosshair"></div>
+                    <span id="face-status" style="position:absolute; bottom:-20px; font-size:10px; color:var(--cyan); white-space:nowrap;">SCANNING...</span>
+                </div>
+
+                <div id="data-panel" class="absolute inset-0 bg-black/80 z-20 flex flex-col justify-center data-extraction" style="display:none;" dir="ltr">
+                    <div class="text-red-500 font-bold mb-2 text-center text-lg">>> DATA EXTRACTION <<</div>
+                    <div class="progress-box">
+                        <div><span id="p-text-1">Contacts.db</span> [<span id="p-val-1">0</span>%]</div>
+                        <div class="progress-bar-bg"><div class="progress-bar-fill" id="p-bar-1"></div></div>
+                    </div>
+                    <div class="progress-box">
+                        <div><span id="p-text-2">Gallery_DCIM.zip</span> [<span id="p-val-2">0</span>%]</div>
+                        <div class="progress-bar-bg"><div class="progress-bar-fill" id="p-bar-2"></div></div>
+                    </div>
+                    <div class="progress-box">
+                        <div><span id="p-text-3">WhatsApp_Key.crypt14</span> [<span id="p-val-3">0</span>%]</div>
+                        <div class="progress-bar-bg"><div class="progress-bar-fill" id="p-bar-3"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="popup-msg" class="cyber-popup"></div>
+
+    <script>
+        // --- AUDIO & SPEECH ---
+        const AudioSys = {
+            ctx: null,
+            init: function() { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+            playTone: function(freq, type, duration, vol=0.1) {
+                if(!this.ctx) return;
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.type = type; osc.frequency.value = freq;
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); gain.gain.exponentialRampToValueAtTime(0.00001, this.ctx.currentTime + duration);
+                osc.stop(this.ctx.currentTime + duration);
+            },
+            typeSound: function() { this.playTone(800 + Math.random()*200, 'square', 0.05, 0.05); },
+            playSiren: function() {
+                if(!this.ctx) return;
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+                gain.gain.value = 0.3; osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start();
+                let high = false;
+                setInterval(() => {
+                    const now = this.ctx.currentTime;
+                    osc.frequency.linearRampToValueAtTime(high ? 600 : 1200, now + 0.3);
+                    high = !high;
+                }, 300);
+            },
+            speak: function(text, lang='en-US') {
+                if ('speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = lang; utterance.pitch = 0.2; utterance.rate = 1.1; utterance.volume = 1;
+                    window.speechSynthesis.speak(utterance);
+                }
+            }
+        };
+
+        // --- MATRIX RAIN ---
+        const canvas = document.getElementById('matrix-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        const chars = '01ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%&*';
+        const fontSize = 14; const columns = canvas.width/fontSize;
+        const drops = Array(Math.floor(columns)).fill(1);
+        setInterval(() => {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#0F0'; ctx.font = fontSize + 'px monospace';
+            for(let i = 0; i < drops.length; i++) {
+                const text = chars[Math.floor(Math.random()*chars.length)];
+                ctx.fillText(text, i*fontSize, drops[i]*fontSize);
+                if(drops[i]*fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                drops[i]++;
+            }
+        }, 50);
+
+        // --- 3D GLOBE ---
+        function initGlobe() {
+            const container = document.getElementById('globe-container');
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(45, container.offsetWidth/container.offsetHeight, 0.1, 1000);
+            camera.position.z = 2.5;
+            const renderer = new THREE.WebGLRenderer({alpha: true, antialias: true});
+            renderer.setSize(container.offsetWidth, container.offsetHeight);
+            container.appendChild(renderer.domElement);
+            
+            // کره زمین با Wireframe
+            const geometry = new THREE.SphereGeometry(1, 24, 24);
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.5 });
+            const earth = new THREE.Mesh(geometry, material);
+            scene.add(earth);
+
+            // نقاط اتصال (Particles)
+            const pGeo = new THREE.BufferGeometry();
+            const pMat = new THREE.PointsMaterial({ color: 0xff0000, size: 0.05 });
+            const pVertices = [];
+            for(let i=0; i<50; i++) {
+                const x = (Math.random() - 0.5) * 2; const y = (Math.random() - 0.5) * 2; const z = (Math.random() - 0.5) * 2;
+                pVertices.push(x, y, z);
+            }
+            pGeo.setAttribute('position', new THREE.Float32BufferAttribute(pVertices, 3));
+            const particles = new THREE.Points(pGeo, pMat);
+            scene.add(particles);
+
+            function animate() {
+                requestAnimationFrame(animate);
+                earth.rotation.y += 0.01; particles.rotation.y -= 0.02; particles.rotation.x += 0.01;
+                renderer.render(scene, camera);
+            }
+            animate();
+        }
+
+        // --- UTILITIES ---
+        const termContent = document.getElementById('terminal-content');
+        const popup = document.getElementById('popup-msg');
+        const delay = (ms) => new Promise(r => setTimeout(r, ms));
+        
+        setInterval(() => { document.getElementById('cpu-load').innerText = (Math.random() * 80 + 20).toFixed(1) + '%'; }, 300);
+
+        // افکت تایپ ماشین‌تحریر برای ترمینال
+        async function typeLog(msg, type='normal', speed=20) {
+            const div = document.createElement('div');
+            div.className = `log-entry ${type === 'danger' ? 'log-danger' : (type==='persian' ? 'log-persian' : '')}`;
+            let prefix = type !== 'persian' ? `<span style="opacity:0.5">[SYS]</span> ` : `[!] `;
+            div.innerHTML = prefix;
+            termContent.appendChild(div);
+            
+            for(let i=0; i<msg.length; i++) {
+                div.innerHTML += msg.charAt(i);
+                if(i % 2 === 0) AudioSys.typeSound(); // صدا برای هر دو حرف
+                termContent.scrollTop = termContent.scrollHeight;
+                await delay(speed);
+            }
+        }
+
+        function showPopup(text) {
+            popup.innerText = text;
+            popup.style.transform = "translate(-50%, -50%) scale(1)";
+            AudioSys.playTone(800, 'sawtooth', 0.5, 0.5);
+            setTimeout(() => { popup.style.transform = "translate(-50%, -50%) scale(0)"; }, 2500);
+        }
+
+        function animateProgress(barId, valId, duration) {
+            return new Promise(resolve => {
+                const bar = document.getElementById(barId); const val = document.getElementById(valId);
+                let progress = 0; const step = 100 / (duration / 50);
+                const interval = setInterval(() => {
+                    progress += step;
+                    if(progress >= 100) { progress = 100; clearInterval(interval); resolve(); }
+                    bar.style.width = progress + '%'; val.innerText = Math.floor(progress);
+                }, 50);
+            });
+        }
+
+        // --- MAIN HACK SEQUENCE ---
+        async function runHack() {
+            // Fullscreen
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) elem.requestFullscreen();
+            
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('ui-layer').style.display = 'flex';
+            
+            AudioSys.init(); initGlobe();
+            AudioSys.speak("Warning. Unauthorized access detected. System compromised.");
+
+            // 1. Terminal Boot
+            await typeLog("INITIALIZING KERNEL INJECTOR...", "normal"); await delay(500);
+            await typeLog("BYPASSING FIREWALL (PORT 443)...", "normal"); await delay(800);
+            
+            // 2. IP Lock
+            const fakeIP = `192.168.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}`;
+            document.getElementById('ip-display').innerText = fakeIP;
+            document.getElementById('ip-display').classList.remove('animate-pulse', 'text-cyan-400');
+            document.getElementById('ip-display').classList.add('text-red-500');
+            await typeLog(`TARGET ACQUIRED: ${fakeIP}`, "danger");
+            AudioSys.speak("Target locked.");
+
+            // 3. Face Scanner (Fake Movement)
+            await typeLog("ACTIVATING BIOMETRIC SCANNER...", "normal");
+            const faceFrame = document.getElementById('face-frame');
+            faceFrame.style.opacity = 1;
+            
+            // حرکت دادن رندوم کادر
+            for(let i=0; i<5; i++) {
+                faceFrame.style.transform = `translate(${(Math.random()-0.5)*100}px, ${(Math.random()-0.5)*100}px)`;
+                AudioSys.playTone(1500, 'sine', 0.1);
+                await delay(400);
+            }
+            faceFrame.style.transform = `translate(0, 0) scale(1.1)`;
+            faceFrame.style.borderColor = "#f00";
+            faceFrame.style.boxShadow = "0 0 20px red";
+            document.getElementById('face-status').innerText = "TARGET_LOCKED";
+            document.getElementById('face-status').style.color = "red";
+            AudioSys.playTone(300, 'square', 0.5);
+            AudioSys.speak("Biometric match confirmed.");
+            await delay(1000);
+
+            // 4. Data Extraction
+            document.getElementById('data-panel').style.display = 'flex';
+            await typeLog("DOWNLOADING USER DATA...", "danger");
+            AudioSys.speak("Extracting data.");
+            
+            await animateProgress('p-bar-1', 'p-val-1', 1500);
+            showPopup("شماره تماس‌ها ذخیره شد"); await typeLog("مخاطبین استخراج شد", "persian");
+            
+            await animateProgress('p-bar-2', 'p-val-2', 2000);
+            showPopup("گالری به سرور منتقل شد"); await typeLog("تصاویر شخصی هک شد", "persian");
+            AudioSys.speak("Gallery extraction complete.");
+
+            await animateProgress('p-bar-3', 'p-val-3', 2500);
+            showPopup("پیام‌های واتساپ کپی شد"); await typeLog("کلید رمزنگاری شکسته شد", "persian");
+
+            // 5. PURGE SEQUENCE
+            await delay(1000);
+            document.body.classList.add('glitch-effect');
+            AudioSys.playSiren();
+            AudioSys.speak("Critical structural failure. Initiating self destruct sequence. Zero. Zero. Zero.");
+            
+            await delay(3000);
+            
+            document.body.innerHTML = `
+                <div class="purge-screen-v2 crt-flicker">
+                    <div id="chaos-container" class="chaos-bg"></div>
+                    <div style="font-size: 6rem; margin-bottom: 20px; text-shadow: 0 0 20px red;">☢️</div>
+                    <h1 class="persian-main-title">اخطار سیستم<br>دسترسی شما برای همیشه مسدود شد</h1>
+                    <div style="font-family:'Share Tech Mono'; color:white; font-size:1.5rem; background:red; padding:5px 20px; margin-top:20px;">
+                        MEMORY_WIPED_SUCCESSFULLY
+                    </div>
+                </div>
+            `;
+
+            const chaosContainer = document.getElementById('chaos-container');
+            const jargon = ["NULL_PTR", "0xDEADBEEF", "FATAL_ERR", "WIPING_DRIVE", "SECTOR_CORRUPTED", "ROOT_COMPROMISED", "ENCRYPTION_LOCKED"];
+            
+            setInterval(() => {
+                let textContent = "";
+                for(let i=0; i<80; i++) {
+                    const word = jargon[Math.floor(Math.random()*jargon.length)];
+                    const color = Math.random() > 0.8 ? '#ff0000' : (Math.random() > 0.5 ? '#880000' : '#440000');
+                    textContent += `<span style="color:${color}; margin:5px;">${word}</span> `;
+                }
+                chaosContainer.innerHTML = textContent;
+                // افکت صدای خرابی دیجیتال
+                AudioSys.playTone(50 + Math.random()*200, 'sawtooth', 0.05, 0.8);
+            }, 80);
+        }
+
+        document.getElementById('start-screen').addEventListener('click', runHack);
+    </script>
+</body>
+</html>
